@@ -8,3 +8,12 @@ Drag the two classes and #import the header file in your Application Delegate an
 ```objc
 [LXiCloudUserDefaultSync startSyncKeys:@[key1, key2]];
 ```
+
+#How to confirm if it works?
+
+After first sync, doing some UserDefault value change through your app. then use the following lines to see if the value is updated.
+
+```objc
+NSUbiquitousKeyValueStore *iCloudStore = [NSUbiquitousKeyValueStore defaultStore];
+NSLog(@"key1=%@", [iCloudStore objectForKey:key1]);
+```

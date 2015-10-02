@@ -13,39 +13,45 @@ static NSArray *lXiCloudkeys;
 
 + (void)updateToiCloud:(NSNotification*) notificationObject {
 
-    NSUserDefaults *localStore = [NSUserDefaults standardUserDefaults];
+    dispatch_queue_t syncQueue = dispatch_queue_create("lxiCloudUserDefaultSyncQueue",NULL);
+    
+    dispatch_async(syncQueue, ^{
+        NSUserDefaults *localStore = [NSUserDefaults standardUserDefaults];
 
-    [lXiCloudkeys enumerateObjectsUsingBlock:^(id  _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
-        id val = [localStore objectForKey:key];
-        [[NSUbiquitousKeyValueStore defaultStore] setObject:val forKey:key];
-    }];
+        [lXiCloudkeys enumerateObjectsUsingBlock:^(id  _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
+            id val = [localStore objectForKey:key];
+            [[NSUbiquitousKeyValueStore defaultStore] setObject:val forKey:key];
+        }];
 
-    [[NSUbiquitousKeyValueStore defaultStore] synchronize];
+        [[NSUbiquitousKeyValueStore defaultStore] synchronize];
+    });
 }
 
 + (void)updateFromiCloud:(NSNotification*) notificationObject {
 
-    NSUbiquitousKeyValueStore *iCloudStore = [NSUbiquitousKeyValueStore defaultStore];
+    dispatch_queue_t syncQueue = dispatch_queue_create("lxiCloudUserDefaultSyncQueue",NULL);
+    dispatch_async(syncQueue, ^{
+        NSUbiquitousKeyValueStore *iCloudStore = [NSUbiquitousKeyValueStore defaultStore];
+        // prevent NSUserDefaultsDidChangeNotification from being posted while we update from iCloud
+        [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                        name:NSUserDefaultsDidChangeNotification
+                                                      object:nil];
 
-    // prevent NSUserDefaultsDidChangeNotification from being posted while we update from iCloud
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:NSUserDefaultsDidChangeNotification
-                                                  object:nil];
+        [lXiCloudkeys enumerateObjectsUsingBlock:^(id  _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
+            id val = [iCloudStore objectForKey:key];
+            [[NSUserDefaults standardUserDefaults] setObject:val forKey:key];
+        }];
 
-    [lXiCloudkeys enumerateObjectsUsingBlock:^(id  _Nonnull key, NSUInteger idx, BOOL * _Nonnull stop) {
-        id val = [iCloudStore objectForKey:key];
-        [[NSUserDefaults standardUserDefaults] setObject:val forKey:key];
-    }];
+        [[NSUserDefaults standardUserDefaults] synchronize];
 
-    [[NSUserDefaults standardUserDefaults] synchronize];
+        // enable NSUserDefaultsDidChangeNotification notifications again
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(updateToiCloud:)
+                                                     name:NSUserDefaultsDidChangeNotification
+                                                   object:nil];
 
-    // enable NSUserDefaultsDidChangeNotification notifications again
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(updateToiCloud:)
-                                                 name:NSUserDefaultsDidChangeNotification
-                                               object:nil];
-
-    [[NSNotificationCenter defaultCenter] postNotificationName:kLXiCloudUserDefaultSyncNotification object:nil];
+        [[NSNotificationCenter defaultCenter] postNotificationName:kLXiCloudUserDefaultSyncNotification object:nil];
+    });
 }
 
 +(void)startSyncKeys:(NSArray*)keys;
